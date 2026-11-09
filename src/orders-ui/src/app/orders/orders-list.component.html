@@ -1,0 +1,38 @@
+<div class="orders">
+  <h2>Offene Aufträge</h2>
+
+  <div class="filters">
+    <input
+      type="text"
+      [(ngModel)]="filterOrderNumber"
+      placeholder="Auftragsnummer"
+      (keyup.enter)="applyFilter()"
+    />
+    <button type="button" (click)="applyFilter()">Filtern</button>
+  </div>
+
+  <p *ngIf="loading">Lade Aufträge…</p>
+
+  <table *ngIf="!loading">
+    <thead>
+      <tr>
+        <th>Nr.</th>
+        <th>Kunde</th>
+        <th>Datum</th>
+        <th>Betrag</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let order of orders">
+        <td>{{ order.orderNumber }}</td>
+        <td>{{ order.customer?.name }}</td>
+        <td>{{ order.createdAt | date: 'dd.MM.yyyy' }}</td>
+        <td>{{ order.totalAmount | currency: 'EUR' }}</td>
+        <td>
+          <button type="button" (click)="markCompleted(order)">Erledigt</button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
