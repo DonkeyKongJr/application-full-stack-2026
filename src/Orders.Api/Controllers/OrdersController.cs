@@ -18,16 +18,21 @@ public class OrdersController : ControllerBase
     }
 
     [HttpGet]
-    public ActionResult<List<Order>> GetOrders([FromQuery] OrderFilterRequest filter)
+    public async Task<ActionResult<PagedResult<OrderListItemDto>>> GetOrders(
+        [FromQuery] OrderFilterRequest filter,
+        CancellationToken cancellationToken)
     {
-        var orders = _orderService.GetOpenOrders(filter);
-        return Ok(orders);
+        var result = await _orderService.GetOpenOrdersAsync(filter, cancellationToken);
+        return Ok(result);
     }
 
-    [HttpPost("{id}/complete")]
-    public ActionResult<Order> Complete(int id, [FromBody] CompleteOrderRequest request)
+    [HttpPost("{id:int}/complete")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Complete(
+        int id,
+        [FromBody] CompleteOrderRequest request)
     {
-        var order = _orderService.CompleteOrder(id, request);
-        return Ok(order);
+        await _orderService.CompleteAsync(id, request);
+        return NoContent();
     }
 }

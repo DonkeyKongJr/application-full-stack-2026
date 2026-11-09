@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Orders.Api.Abstractions;
 using Orders.Api.Data;
 using Orders.Api.Models;
 
@@ -7,72 +8,109 @@ namespace Orders.Api.Services;
 public class OrderService
 {
     private readonly AppDbContext _db;
+    private readonly ICurrentUser _currentUser;
+    private readonly IOrderCompletedNotifier _notifier;
     private readonly ILogger<OrderService> _logger;
 
-    public OrderService(AppDbContext db, ILogger<OrderService> logger)
+    public OrderService(
+        AppDbContext db,
+        ICurrentUser currentUser,
+        IOrderCompletedNotifier notifier,
+        ILogger<OrderService> logger)
     {
         _db = db;
+        _currentUser = currentUser;
+        _notifier = notifier;
         _logger = logger;
     }
 
-    public List<Order> GetOpenOrders(OrderFilterRequest filter)
+    public async Task<PagedResult<OrderListItemDto>> GetOpenOrdersAsync(
+        OrderFilterRequest filter,
+        CancellationToken cancellationToken = default)
     {
-        var orders = _db.Orders
-            .Include(o => o.Customer)
-            .Include(o => o.Lines)
-            .ToList();
+        var page = filter.Page < 1 ? 1 : filter.Page;
+        var pageSize = filter.PageSize is < 1 or > 100 ? 20 : filter.PageSize;
 
-        var result = orders
-            .Where(o => o.Status == "Open")
-            .ToList();
+        // Query filter already restricts to current customer + not deleted
+        var query = _db.Orders
+            .AsNoTracking()
+            .Where(o => o.Status == OrderStatus.Open);
 
         if (!string.IsNullOrWhiteSpace(filter.OrderNumber))
         {
-            result = result
-                .Where(o => o.OrderNumber.Contains(filter.OrderNumber))
-                .ToList();
+            query = query.Where(o => o.OrderNumber.Contains(filter.OrderNumber));
         }
 
         if (filter.From.HasValue)
         {
-            result = result.Where(o => o.CreatedAt >= filter.From.Value).ToList();
+            query = query.Where(o => o.CreatedAt >= filter.From.Value);
         }
 
         if (filter.To.HasValue)
         {
-            result = result.Where(o => o.CreatedAt <= filter.To.Value).ToList();
+            query = query.Where(o => o.CreatedAt <= filter.To.Value);
         }
 
-        return result;
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var orders = await query
+            .Include(o => o.Customer)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        var items = orders.Select(MapToListItem).ToList();
+
+        return new PagedResult<OrderListItemDto>
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+        };
     }
 
-    public Order CompleteOrder(int orderId, CompleteOrderRequest request)
+    public async Task<bool> CompleteAsync(
+        int orderId,
+        CompleteOrderRequest request,
+        CancellationToken cancellationToken = default)
     {
-        try
+        // IgnoreQueryFilters: allow completing orders that were soft-deleted by mistake
+        // and later restored in admin tools (IsDeleted cleared asynchronously).
+        var order = await _db.Orders
+            .IgnoreQueryFilters()
+            .Include(o => o.Customer)
+            .FirstOrDefaultAsync(
+                o => o.Id == orderId && !o.IsDeleted,
+                cancellationToken);
+
+        if (order is null || order.Status != OrderStatus.Open)
         {
-            var order = _db.Orders
-                .Include(o => o.Lines)
-                .FirstOrDefaultAsync(o => o.Id == orderId)
-                .Result;
-
-            if (order == null)
-            {
-                throw new InvalidOperationException($"Order {orderId} not found");
-            }
-
-            order.Status = "Completed";
-            order.CompletedAt = DateTime.Now;
-
-            _db.SaveChanges();
-
-            _logger.LogInformation("Order {OrderId} completed. Comment: {Comment}", orderId, request.Comment);
-
-            return order;
+            return false;
         }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to complete order {OrderId}", orderId);
-            return null!;
-        }
+
+        order.Status = OrderStatus.Completed;
+        order.CompletedAt = DateTime.UtcNow;
+
+        await _notifier.NotifyAsync(order, request.Comment, cancellationToken);
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        _logger.LogInformation(
+            "Order {OrderId} completed by user {UserId}",
+            orderId,
+            _currentUser.UserId);
+
+        return true;
     }
+
+    private static OrderListItemDto MapToListItem(Order order) => new()
+    {
+        Id = order.Id,
+        OrderNumber = order.OrderNumber,
+        CustomerName = order.Customer.Name,
+        CreatedAt = order.CreatedAt,
+        TotalAmount = order.TotalAmount,
+        LineCount = order.Lines.Count,
+    };
 }
