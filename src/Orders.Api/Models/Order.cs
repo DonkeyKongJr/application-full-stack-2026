@@ -18,7 +18,6 @@ public class Order
     public DateTime? CompletedAt { get; set; }
     public decimal TotalAmount { get; set; }
     public bool IsDeleted { get; set; }
-    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
     public List<OrderLine> Lines { get; set; } = new();
 }
 
