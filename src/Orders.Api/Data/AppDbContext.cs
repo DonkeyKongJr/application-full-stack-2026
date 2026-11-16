@@ -24,6 +24,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(o => o.Id);
             entity.Property(o => o.OrderNumber).HasMaxLength(32).IsRequired();
+            entity.Property(o => o.RowVersion).IsRowVersion();
             entity.HasOne(o => o.Customer).WithMany().HasForeignKey(o => o.CustomerId);
             entity.HasMany(o => o.Lines).WithOne(l => l.Order).HasForeignKey(l => l.OrderId);
 
