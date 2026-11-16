@@ -1,3 +1,4 @@
+using Billing.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Orders.Api.Abstractions;
@@ -28,6 +29,9 @@ public class OrderServiceTests
 
     private static AppDbContext CreateDb(TestUser user, string name) =>
         new(new DbContextOptionsBuilder<AppDbContext>().UseInMemoryDatabase(name).Options, user);
+
+    private static BillingDbContext CreateBillingDb() =>
+        new(new DbContextOptionsBuilder<BillingDbContext>().UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
 
     private static async Task SeedAsync(AppDbContext db)
     {
@@ -62,7 +66,7 @@ public class OrderServiceTests
         var user = new TestUser(1);
         await using var db = CreateDb(user, Guid.NewGuid().ToString());
         await SeedAsync(db);
-        var sut = new OrderService(db, user, new RecordingNotifier(), NullLogger<OrderService>.Instance);
+        var sut = new OrderService(db, CreateBillingDb(), user, new RecordingNotifier(), NullLogger<OrderService>.Instance);
 
         var result = await sut.GetOpenOrdersAsync(new OrderFilterRequest { OrderNumber = "A-10" });
 
@@ -76,7 +80,7 @@ public class OrderServiceTests
         var user = new TestUser(1);
         await using var db = CreateDb(user, Guid.NewGuid().ToString());
         await SeedAsync(db);
-        var sut = new OrderService(db, user, new RecordingNotifier(), NullLogger<OrderService>.Instance);
+        var sut = new OrderService(db, CreateBillingDb(), user, new RecordingNotifier(), NullLogger<OrderService>.Instance);
 
         // Noon seed data; end-of-day To always includes them
         var result = await sut.GetOpenOrdersAsync(new OrderFilterRequest
@@ -94,7 +98,7 @@ public class OrderServiceTests
         var user = new TestUser(1);
         await using var db = CreateDb(user, Guid.NewGuid().ToString());
         await SeedAsync(db);
-        var sut = new OrderService(db, user, new RecordingNotifier(), NullLogger<OrderService>.Instance);
+        var sut = new OrderService(db, CreateBillingDb(), user, new RecordingNotifier(), NullLogger<OrderService>.Instance);
 
         var page1 = await sut.GetOpenOrdersAsync(new OrderFilterRequest { Page = 1, PageSize = 1 });
         var page2 = await sut.GetOpenOrdersAsync(new OrderFilterRequest { Page = 2, PageSize = 1 });
@@ -111,7 +115,7 @@ public class OrderServiceTests
         await using var db = CreateDb(user, Guid.NewGuid().ToString());
         await SeedAsync(db);
         var notifier = new RecordingNotifier();
-        var sut = new OrderService(db, user, notifier, NullLogger<OrderService>.Instance);
+        var sut = new OrderService(db, CreateBillingDb(), user, notifier, NullLogger<OrderService>.Instance);
 
         var ok = await sut.CompleteAsync(10, new CompleteOrderRequest { Comment = "passt" });
 

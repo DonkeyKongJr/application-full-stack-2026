@@ -1,3 +1,4 @@
+using Billing.Data;
 using Microsoft.EntityFrameworkCore;
 using Orders.Api.Abstractions;
 using Orders.Api.Data;
@@ -8,17 +9,20 @@ namespace Orders.Api.Services;
 public class OrderService
 {
     private readonly AppDbContext _db;
+    private readonly BillingDbContext _billing;
     private readonly ICurrentUser _currentUser;
     private readonly IOrderCompletedNotifier _notifier;
     private readonly ILogger<OrderService> _logger;
 
     public OrderService(
         AppDbContext db,
+        BillingDbContext billing,
         ICurrentUser currentUser,
         IOrderCompletedNotifier notifier,
         ILogger<OrderService> logger)
     {
         _db = db;
+        _billing = billing;
         _currentUser = currentUser;
         _notifier = notifier;
         _logger = logger;
@@ -35,6 +39,14 @@ public class OrderService
         var query = _db.Orders
             .AsNoTracking()
             .Where(o => o.Status == OrderStatus.Open);
+
+        if (!string.IsNullOrWhiteSpace(filter.SortBy))
+        {
+            query = _db.Orders
+                .FromSqlRaw($"SELECT * FROM Orders ORDER BY {filter.SortBy}")
+                .AsNoTracking()
+                .Where(o => o.Status == OrderStatus.Open);
+        }
 
         if (!string.IsNullOrWhiteSpace(filter.OrderNumber))
         {
@@ -92,9 +104,19 @@ public class OrderService
         order.Status = OrderStatus.Completed;
         order.CompletedAt = DateTime.UtcNow;
 
+        var account = await _billing.BillingAccounts
+            .FirstOrDefaultAsync(a => a.CustomerId == order.CustomerId, cancellationToken);
+
+        if (account is not null)
+        {
+            account.OpenBalance -= order.TotalAmount;
+            account.LastActivityAt = DateTime.UtcNow;
+        }
+
         await _notifier.NotifyAsync(order, request.Comment, cancellationToken);
 
         await _db.SaveChangesAsync(cancellationToken);
+        await _billing.SaveChangesAsync(cancellationToken);
 
         _logger.LogInformation(
             "Order {OrderId} completed by user {UserId}",
