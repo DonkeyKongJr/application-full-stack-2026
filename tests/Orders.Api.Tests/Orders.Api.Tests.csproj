@@ -8,8 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Orders.Api\Orders.Api.csproj" />
-    <ProjectReference Include="..\Modules\Billing\Billing.csproj" />
+    <ProjectReference Include="..\..\src\Orders.Api\Orders.Api.csproj" />
+    <ProjectReference Include="..\..\src\Modules\Billing\Billing.csproj" />
   </ItemGroup>
 
   <ItemGroup>
