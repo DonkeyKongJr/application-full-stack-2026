@@ -1,7 +1,9 @@
 import { Component } from '@angular/core';
+import { OrdersListComponent } from './orders/orders-list.component';
 
 @Component({
   selector: 'app-root',
-  template: `<h1>Kundenportal</h1>`,
+  imports: [OrdersListComponent],
+  template: `<app-orders-list />`,
 })
 export class AppComponent {}

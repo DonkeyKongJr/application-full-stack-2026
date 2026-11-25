@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Orders.Api.Abstractions;
 using Orders.Api.Data;
 using Orders.Api.Infrastructure;
+using Orders.Api.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +19,7 @@ builder.Services.AddDbContext<BillingDbContext>(options =>
 
 builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 builder.Services.AddScoped<IOrderCompletedNotifier, LoggingOrderCompletedNotifier>();
+builder.Services.AddScoped<OrderService>();
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -50,20 +52,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-if (app.Environment.IsDevelopment())
-{
-    app.UseDeveloperExceptionPage();
-}
-else
-{
-    app.UseExceptionHandler("/error");
-}
+app.UseDeveloperExceptionPage();
 
 app.UseHttpsRedirection();
 app.UseRouting();
-app.UseCors();
-app.UseAuthentication();
 app.UseAuthorization();
+app.UseAuthentication();
+app.UseCors();
 app.MapControllers();
 
 app.Run();

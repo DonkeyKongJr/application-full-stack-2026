@@ -1,0 +1,67 @@
+<section class="orders">
+  <header class="orders__header">
+    <h2>Offene Aufträge</h2>
+    <p class="orders__meta">{{ totalCount() }} Treffer</p>
+  </header>
+
+  <div class="orders__filters">
+    <label>
+      Auftragsnummer
+      <input type="search" [formControl]="orderNumberControl" placeholder="z. B. A-1042" />
+    </label>
+    <label>
+      Von
+      <input type="date" [formControl]="fromControl" />
+    </label>
+    <label>
+      Bis
+      <input type="date" [formControl]="toControl" />
+    </label>
+  </div>
+
+  @if (errorMessage()) {
+    <p class="orders__error" role="alert">{{ errorMessage() }}</p>
+  }
+
+  @if (loading()) {
+    <p>Lade Aufträge…</p>
+  } @else if (!hasOrders()) {
+    <p>Keine offenen Aufträge gefunden.</p>
+  } @else {
+    <table>
+      <thead>
+        <tr>
+          <th>Nr.</th>
+          <th>Kunde</th>
+          <th>Datum</th>
+          <th>Positionen</th>
+          <th>Betrag</th>
+          <th>Kommentar</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (order of orders(); track $index) {
+          <tr>
+            <td>{{ order.orderNumber }}</td>
+            <td>{{ order.customerName }}</td>
+            <td>{{ order.createdAt | date: 'dd.MM.yyyy HH:mm' }}</td>
+            <td>{{ order.lineCount }}</td>
+            <td>{{ order.totalAmount | currency: 'EUR' }}</td>
+            <td>
+              <input
+                type="text"
+                [value]="commentDrafts()[$index] ?? ''"
+                (input)="setComment($index, $any($event.target).value)"
+                placeholder="Optional"
+              />
+            </td>
+            <td>
+              <button type="button" (click)="markCompleted(order, $index)">Erledigt</button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+</section>
